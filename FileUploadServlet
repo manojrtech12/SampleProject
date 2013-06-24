@@ -1,0 +1,133 @@
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
+
+@SuppressWarnings("serial")
+@WebServlet(urlPatterns = "/fileUpload")
+@MultipartConfig
+public class FileUploadServlet extends HttpServlet {
+
+  public FileUploadServlet() {
+		super();
+	}
+
+	protected void doGet(HttpServletRequest request,
+			HttpServletResponse response) throws ServletException, IOException {
+		int count = 0;
+		int firstCompoundId = 0;
+		String line = null;
+		ArrayList<String> newHeader1List = new ArrayList<String>();
+		for (Part part : request.getParts()) {
+			if (count == 0) {
+				count++;
+				InputStream is = request.getPart(part.getName())
+						.getInputStream();
+				int i = is.available();
+				byte[] b = new byte[i];
+				is.read(b);
+				String fileName = getFileName(part);
+				String root = getServletContext().getRealPath("/");
+				FileOutputStream os = new FileOutputStream(root + "" + fileName);
+				os.write(b);
+				is.close();
+				fileName = root + "" + fileName;
+				BufferedReader reader = new BufferedReader(
+						new FileReader(fileName));
+				List<String> firstHeaderList = new ArrayList<String>();
+				List<String> secondHeaderList = new ArrayList<String>();
+				while ((line = reader.readLine()) != null) {
+					String[] parts = line.split("\\t");
+					for (String part1 : parts) {
+						firstHeaderList.add(part1);
+					}
+					count++;
+					int compCount = 0;
+					for (int i1 = 0; i1 < firstHeaderList.size(); i1++) {
+						if ("COMPOUND_ID".equals(firstHeaderList
+								.get(i1))) {
+							firstCompoundId = compCount;
+							break;
+						}
+						compCount++;
+					}
+					reader = new BufferedReader(new FileReader(
+							fileName));
+					while ((line = reader.readLine()) != null) {
+						parts = line.split("\\t");
+						if (count > 0) {
+							newHeader1List
+									.add(parts[firstCompoundId]);
+						}
+					}
+					newHeader1List.remove(0);
+					Set<String> setItems = new LinkedHashSet<String>(
+							newHeader1List);
+					newHeader1List.clear();
+					newHeader1List.addAll(setItems);
+					newHeader1List.remove(0);
+					Map<String, List<String>> compoundMap = new HashMap<String, List<String>>();
+					for (String compoudId : newHeader1List) {
+						List<String> valueList = new ArrayList<String>();
+						reader = new BufferedReader(new FileReader(
+								fileName));
+						while ((line = reader.readLine()) != null) {
+							parts = line.split("\\t");
+							if (compoudId
+									.equals(parts[firstCompoundId])) {
+								valueList.add(parts.toString());
+							}
+						}
+						compoundMap.put(compoudId, valueList);
+					}
+					break;
+				}
+			} else {
+				InputStream is = request.getPart(part.getName())
+						.getInputStream();
+				int i = is.available();
+				byte[] b = new byte[i];
+				is.read(b);
+				String fileName = getFileName(part);
+				String root = getServletContext().getRealPath("/");
+				FileOutputStream os = new FileOutputStream(root + "" + fileName);
+				os.write(b);
+				is.close();
+			}
+		}
+
+	}
+
+	private String getFileName(Part part) {
+		String partHeader = part.getHeader("content-disposition");
+		for (String cd : part.getHeader("content-disposition").split(";")) {
+			if (cd.trim().startsWith("filename")) {
+				return cd.substring(cd.indexOf('=') + 1).trim()
+						.replace("\"", "");
+			}
+		}
+		return null;
+
+	}
+
+	protected void doPost(HttpServletRequest request,
+			HttpServletResponse response) throws ServletException, IOException {
+		doGet(request, response);
+	}
+
+}
